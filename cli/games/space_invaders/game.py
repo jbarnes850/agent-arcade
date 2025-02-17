@@ -140,6 +140,9 @@ class SpaceInvadersGame(GameInterface):
     def get_default_config(self) -> GameConfig:
         """Get default Space Invaders configuration."""
         return GameConfig(
+            name=self.name,
+            observation_shape=(4, 84, 84),  # 4 stacked frames, 84x84 grayscale
+            action_space=6,  # Space Invaders actions: NOOP, FIRE, RIGHT, LEFT, RIGHTFIRE, LEFTFIRE
             total_timesteps=1000000,
             learning_rate=0.00025,
             buffer_size=250000,

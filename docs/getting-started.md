@@ -236,3 +236,48 @@ If you encounter issues not covered here:
    - Error message
    - Steps to reproduce
    - Logs from `install.sh`
+
+## Quick Start
+
+```bash
+# Install Agent Arcade
+git clone https://github.com/jbarnes850/agent-arcade.git
+cd agent-arcade
+./install.sh
+
+# List available games
+agent-arcade list-games
+
+# Train your first agent (single-player)
+agent-arcade train pong --render
+
+# Train your first versus AI (multi-agent)
+agent-arcade train pong-versus --train-paddle left --render
+```
+
+## Game Types
+
+Agent Arcade supports two types of games:
+
+1. **Single-Player Games**
+   ```bash
+   # Train a single AI agent
+   agent-arcade train pong --render
+   
+   # Evaluate the trained agent
+   agent-arcade evaluate pong --model models/pong_final.zip
+   ```
+
+2. **Versus Games (Multi-Agent)**
+   ```bash
+   # Train left paddle AI
+   agent-arcade train pong-versus --train-paddle left --render
+   
+   # Train right paddle AI
+   agent-arcade train pong-versus --train-paddle right --render
+   
+   # Have them compete
+   agent-arcade compete pong-versus \
+       --left-ai models/pong_left_final.zip \
+       --right-ai models/pong_right_final.zip
+   ```

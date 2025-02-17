@@ -7,7 +7,6 @@ setup(
     include_package_data=True,
     install_requires=[
         "ale-py>=0.10.2",
-        "shimmy[atari]>=2.0.0",
         "gymnasium[atari]>=0.29.1",
         "stable-baselines3[extra]>=2.5.0",
         "PyYAML>=6.0.1",
@@ -17,7 +16,9 @@ setup(
         "numpy>=1.20.0",
         "loguru>=0.7.0",
         "pydantic>=2.0.0",
-        "Click>=8.0"
+        "Click>=8.0",
+        "pettingzoo[atari]>=1.24.1",
+        "multi-agent-ale-py>=0.1.11"
     ],
     extras_require={
         "staking": [
