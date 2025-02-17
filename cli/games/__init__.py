@@ -142,4 +142,24 @@ for game_dir in games_dir.iterdir():
                     game_instance = game_class()
                     register_game(game_instance.name, game_class)
     except Exception as e:
-        logger.warning(f"Could not load game from {game_file}: {e}") 
+        logger.warning(f"Could not load game from {game_file}: {e}")
+
+def get_game_implementation(name: str) -> GameInterface:
+    """Get a game implementation by name.
+    
+    Args:
+        name: Name of the game to get
+        
+    Returns:
+        Game implementation instance
+        
+    Raises:
+        ValueError: If game not found
+    """
+    games = get_registered_games()
+    if name not in games:
+        available = ", ".join(sorted(games.keys()))
+        raise ValueError(
+            f"Game '{name}' not found. Available games: {available}"
+        )
+    return games[name]() 

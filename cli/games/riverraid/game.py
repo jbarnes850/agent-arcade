@@ -139,6 +139,9 @@ class RiverraidGame(GameInterface):
     def get_default_config(self) -> GameConfig:
         """Get default configuration."""
         return GameConfig(
+            name=self.name,
+            observation_shape=(4, 84, 84),  # 4 stacked frames, 84x84 grayscale
+            action_space=18,  # Riverraid actions
             total_timesteps=1000000,
             learning_rate=0.00025,
             buffer_size=250000,

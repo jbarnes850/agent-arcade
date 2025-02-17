@@ -4,6 +4,7 @@ from pathlib import Path
 import click
 from loguru import logger
 from typing import Optional
+import sys
 
 # Optional NEAR imports
 try:
@@ -16,7 +17,7 @@ except ImportError:
     LeaderboardManager = None
 
 from .core.evaluation import EvaluationConfig, EvaluationPipeline
-from .games import get_registered_games, get_game_info
+from .games import get_registered_games, get_game_info, get_game_implementation
 
 # Initialize global managers
 wallet = NEARWallet() if NEAR_AVAILABLE else None
@@ -348,24 +349,114 @@ def list():
             f"{score:<10}"
         )
 
-@cli.command()
+@cli.group()
+def train():
+    """Train an agent for a game."""
+    pass
+
+@train.command()
 @click.argument('game')
-@click.option('--render/--no-render', default=False, help='Render training environment')
-@click.option('--config', type=click.Path(exists=True), help='Path to configuration file')
-def train(game: str, render: bool, config: Optional[str]):
-    """Train an agent for a specific game."""
+@click.option('--train-paddle', type=click.Choice(['left', 'right']), help='Which paddle to train (for versus games)')
+@click.option('--render/--no-render', default=False, help='Render training episodes')
+@click.option('--config', type=click.Path(exists=True), help='Path to custom training configuration')
+def start(game: str, train_paddle: Optional[str], render: bool, config: Optional[str]):
+    """Start training an agent."""
     games = get_registered_games()
     if game not in games:
         logger.error(f"Game {game} not found")
         return
+        
+    game_impl = get_game_implementation(game)
     
-    game_instance = games[game]()
+    # Map paddle choice to role
+    role_map = {
+        'left': 'first_0',
+        'right': 'second_0'
+    }
+    
+    # Handle role for multi-agent games
+    if game_impl.is_multi_agent:
+        if not train_paddle:
+            logger.error(f"Must specify --train-paddle for multi-agent game {game}")
+            return
+        if train_paddle not in role_map:
+            logger.error(f"Invalid paddle choice. Must be one of: {', '.join(role_map.keys())}")
+            return
+        role = role_map[train_paddle]
+    else:
+        role = None
+    
     try:
         config_path = Path(config) if config else None
-        model_path = game_instance.train(render=render, config_path=config_path)
-        logger.info(f"Training complete! Model saved to: {model_path}")
+        model_path = game_impl.train(
+            render=render,
+            config_path=config_path,
+            player_role=role
+        )
+        logger.info(f"Training completed. Model saved to {model_path}")
     except Exception as e:
         logger.error(f"Training failed: {e}")
+
+@cli.command()
+@click.argument("game")
+@click.option("--left-ai", type=click.Path(exists=True), help="Model path for left paddle AI")
+@click.option("--right-ai", type=click.Path(exists=True), help="Model path for right paddle AI")
+@click.option("--episodes", default=100, help="Number of episodes to evaluate")
+@click.option("--render", is_flag=True, help="Render the competition")
+def compete(game: str, left_ai: str, right_ai: str, episodes: int, render: bool) -> None:
+    """Evaluate two trained AIs against each other in a versus game."""
+    try:
+        game_impl = get_game_implementation(game)
+        if not game_impl.is_multi_agent:
+            raise click.UsageError("The compete command is only for versus games")
+        
+        result = game_impl.evaluate_versus(
+            left_model_path=Path(left_ai),
+            right_model_path=Path(right_ai),
+            episodes=episodes,
+            render=render
+        )
+        
+        # Display results
+        click.echo("\n🏆 Competition Results:")
+        click.echo("-" * 40)
+        click.echo(f"Episodes played: {episodes}")
+        if result.player_scores:
+            click.echo(f"Left AI average score:  {result.player_scores['first_0']:.2f}")
+            click.echo(f"Right AI average score: {result.player_scores['second_0']:.2f}")
+        if result.winner:
+            winner = "Left AI" if result.winner == "first_0" else "Right AI"
+            click.echo(f"Winner: {winner}")
+        click.echo(f"Average episode length: {result.episode_length:.1f}")
+        
+    except Exception as e:
+        click.echo(f"❌ Competition failed: {e}", err=True)
+        sys.exit(1)
+
+@cli.command()
+@click.option("--type", type=click.Choice(['all', 'single', 'versus']), default='all', help="Filter games by type")
+def list_games(type: str):
+    """List available games and their types."""
+    games = get_registered_games()
+    
+    click.echo("\n🎮 Available Games:")
+    click.echo("-" * 40)
+    
+    for name, game_class in sorted(games.items()):
+        game = game_class()
+        if type != 'all':
+            if type == 'versus' and not game.is_multi_agent:
+                continue
+            if type == 'single' and game.is_multi_agent:
+                continue
+        
+        game_type = "Versus" if game.is_multi_agent else "Single-player"
+        click.echo(f"\n{name}:")
+        click.echo(f"  Type: {game_type}")
+        click.echo(f"  Description: {game.description}")
+        if game.is_multi_agent:
+            positions = "left/right" if "pong" in name.lower() else "positions vary"
+            click.echo(f"  Trainable positions: {positions}")
 
 if __name__ == "__main__":
     cli() 

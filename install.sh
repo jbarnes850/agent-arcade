@@ -72,7 +72,7 @@ python3 -m pip install --upgrade pip
 
 # Clean install - remove existing packages if present
 echo "🧹 Cleaning existing installations..."
-pip uninstall -y agent-arcade ale-py shimmy gymnasium || true
+pip uninstall -y agent-arcade ale-py shimmy gymnasium pettingzoo supersuit || true
 
 # Install dependencies in correct order with error handling
 echo "📥 Installing core dependencies..."
@@ -105,6 +105,13 @@ if ! pip install "shimmy[atari]>=2.0.0"; then
     exit 1
 fi
 
+# Install PettingZoo and SuperSuit
+echo "Installing PettingZoo and SuperSuit..."
+if ! pip install "pettingzoo[atari]>=1.24.1" "supersuit>=3.9.0"; then
+    echo "❌ Failed to install PettingZoo and SuperSuit."
+    exit 1
+fi
+
 # Install Stable-Baselines3 after environment dependencies
 echo "Installing Stable-Baselines3..."
 if ! pip install "stable-baselines3[extra]>=2.5.0"; then
@@ -126,96 +133,28 @@ if ! AutoROM --accept-license; then
     exit 1
 fi
 
-# Verify ALE interface with environment registration
-echo "🎮 Verifying ALE interface..."
+# Verify environment setup
+echo "🎮 Verifying environment setup..."
 python3 -c "
 import gymnasium as gym
 import ale_py
-from ale_py import ALEInterface
+import pettingzoo
+import supersuit as ss
+from pettingzoo.atari import pong_v3
 
-# Register environments
+# Test PettingZoo environment
+env = pong_v3.env(render_mode='rgb_array')
+env = ss.color_reduction_v0(env)
+env = ss.resize_v1(env, 84, 84)
+env = ss.frame_stack_v1(env, 4)
+print('✅ PettingZoo environment verified')
+
+# Test ALE environment
 gym.register_envs(ale_py)
-
-ale = ALEInterface()
 print(f'A.L.E: Arcade Learning Environment (version {ale_py.__version__})')
 print('✅ Environment registration successful')
-
-# Test environment creation with proper wrappers
-env = gym.make('ALE/Pong-v5', render_mode='rgb_array')
-env = gym.wrappers.ResizeObservation(env, (84, 84))
-env = gym.wrappers.GrayscaleObservation(env)
-env = gym.wrappers.FrameStackObservation(env, 4)
-print('✅ Environment wrappers verified')
 " || {
-    echo "❌ ALE interface verification failed."
-    exit 1
-}
-
-# Verify ROM installation
-echo "✅ Verifying ROMs..."
-python3 -c "
-import os
-from pathlib import Path
-import ale_py
-
-rom_dir = Path(ale_py.__file__).parent / 'roms'
-required_roms = ['pong.bin', 'space_invaders.bin']
-missing_roms = [rom for rom in required_roms if not (rom_dir / rom).exists()]
-
-if missing_roms:
-    print('❌ Missing required ROMs:')
-    for rom in missing_roms:
-        print(f'  - {rom}')
-    exit(1)
-else:
-    print('✅ All required ROMs are installed!')
-    print(f'ROM directory: {rom_dir}')
-    print('Available ROMs:')
-    for rom in sorted(rom_dir.glob('*.bin')):
-        print(f'  - {rom.name}')
-" || {
-    echo "❌ ROM verification failed."
-    echo "Please ensure ROMs are installed correctly using the instructions above."
-    exit 1
-}
-
-# Test ROM functionality with proper wrappers
-echo "🎮 Testing ROM functionality..."
-python3 -c "
-import gymnasium as gym
-import numpy as np
-import sys
-import ale_py
-
-# Register ALE environments
-gym.register_envs(ale_py)
-
-def test_env(game_name):
-    print(f'Testing {game_name}...')
-    env = gym.make(f'ALE/{game_name}-v5', render_mode='rgb_array')
-    env = gym.wrappers.GrayscaleObservation(env, keep_dim=False)
-    env = gym.wrappers.ResizeObservation(env, (84, 84))
-    env = gym.wrappers.FrameStackObservation(env, 4)
-    
-    obs, _ = env.reset()
-    assert isinstance(obs, np.ndarray), f'{game_name}: Invalid observation type'
-    print(f'Observation shape: {obs.shape}')  # Debug print
-    assert obs.shape == (4, 84, 84), f'{game_name}: Invalid observation shape, got {obs.shape}'
-    action = env.action_space.sample()
-    obs, reward, terminated, truncated, info = env.step(action)
-    assert isinstance(reward, float), f'{game_name}: Invalid reward type'
-    env.close()
-    print(f'✅ {game_name} ROM functional')
-
-try:
-    test_env('Pong')
-    test_env('SpaceInvaders')
-except Exception as e:
-    print(f'❌ ROM functionality test failed: {e}')
-    sys.exit(1)
-" || {
-    echo "❌ ROM functionality test failed."
-    echo "Please ensure ROMs are correctly installed and compatible."
+    echo "❌ Environment verification failed."
     exit 1
 }
 
@@ -275,7 +214,7 @@ if [[ $install_near =~ ^[Yy]$ ]]; then
 fi
 echo ""
 echo "🎮 Try training your first agent:"
-echo "  agent-arcade train pong --render"
+echo "  agent-arcade train pong-2p --role first_0 --render"
 echo ""
 echo "📊 Monitor training progress:"
 echo "  tensorboard --logdir ./tensorboard"

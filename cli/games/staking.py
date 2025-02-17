@@ -10,12 +10,15 @@ try:
 except ImportError:
     NEAR_AVAILABLE = False
 
-def stake_on_game(wallet: Optional['NEARWallet'], 
-                 game_name: str,
-                 model_path: Path, 
-                 amount: float, 
-                 target_score: float,
-                 score_range: Tuple[float, float]) -> None:
+def stake_on_game(
+    wallet: Optional['NEARWallet'], 
+    game_name: str,
+    model_path: Path, 
+    amount: float, 
+    target_score: float,
+    player_role: Optional[str] = None,
+    is_multi_agent: bool = False
+) -> None:
     """Stake on a game's performance.
     
     Args:
@@ -24,7 +27,8 @@ def stake_on_game(wallet: Optional['NEARWallet'],
         model_path: Path to the model to stake on
         amount: Amount to stake in NEAR
         target_score: Target score to achieve
-        score_range: Valid score range for the game
+        player_role: Role in multi-agent game (e.g., "first_0", "second_0")
+        is_multi_agent: Whether this is a multi-agent game
     """
     if not NEAR_AVAILABLE:
         logger.error("NEAR integration is not available. Install with: pip install -e '.[staking]'")
@@ -32,11 +36,6 @@ def stake_on_game(wallet: Optional['NEARWallet'],
         
     if not wallet:
         logger.error("Wallet not initialized")
-        return
-        
-    min_score, max_score = score_range
-    if not min_score <= target_score <= max_score:
-        logger.error(f"Target score {target_score} is outside valid range [{min_score}, {max_score}]")
         return
         
     try:
@@ -51,10 +50,14 @@ def stake_on_game(wallet: Optional['NEARWallet'],
             model_path=str(model_path),
             amount=amount,
             target_score=target_score,
-            status="pending"
+            status="pending",
+            player_role=player_role if is_multi_agent else None,
+            is_multi_agent=is_multi_agent
         )
         wallet.record_stake(stake_record)
-        logger.info(f"Successfully placed stake of {amount} NEAR on {game_name}")
+        
+        role_info = f" as {player_role}" if player_role else ""
+        logger.info(f"Successfully placed stake of {amount} NEAR on {game_name}{role_info}")
         
     except Exception as e:
         logger.error(f"Failed to place stake: {e}") 

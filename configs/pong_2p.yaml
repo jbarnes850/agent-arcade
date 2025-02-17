@@ -1,0 +1,36 @@
+# Pong Versus Mode - AI Training Configuration
+
+# Training parameters for AI agents
+total_timesteps: 1000000  # How long to train the AI (in game steps)
+learning_rate: 0.00025    # How quickly the AI learns
+buffer_size: 250000       # How many experiences to remember
+learning_starts: 50000    # Steps before starting to learn
+batch_size: 256          # How many experiences to learn from at once
+exploration_fraction: 0.2 # How much to explore vs exploit
+target_update_interval: 2000  # How often to update target network
+frame_stack: 4           # Number of frames to consider at once
+
+# Game environment settings
+env_id: "pong_v3"        # PettingZoo environment ID
+frame_skip: 4            # Process every 4th frame for efficiency
+noop_max: 30            # Random wait time at start
+
+# AI neural network settings
+policy: "CnnPolicy"      # Type of neural network to use
+features_extractor: "NatureCNN"  # How to process game frames
+features_dim: 512       # Size of internal representation
+
+# Image processing
+normalize_images: true   # Scale pixel values to 0-1
+grayscale: true         # Convert to black and white
+resize_shape: [84, 84]  # Resize game frames to 84x84
+
+# Evaluation settings
+eval_episodes: 100      # Number of games for evaluation
+eval_deterministic: true # Use best actions during evaluation
+render_eval: false      # Show game during evaluation
+
+# Training progress tracking
+tensorboard_log: true   # Save training statistics
+save_freq: 100000       # Save AI model every 100k steps
+log_interval: 1000      # Print progress every 1000 steps 
