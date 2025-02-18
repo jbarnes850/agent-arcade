@@ -1,14 +1,10 @@
 """Game loading and management for Agent Arcade."""
 from pathlib import Path
 from importlib import import_module
-from typing import Dict, Type, List, Optional, Tuple, Callable
+from typing import Dict, Type, List, Optional
 from loguru import logger
-from dataclasses import dataclass
 
 from .base import GameInterface, GameConfig
-from .pong.game import PongGame
-from .space_invaders.game import SpaceInvadersGame
-from .riverraid.game import RiverraidGame
 
 # Register Atari environments
 try:
@@ -27,24 +23,20 @@ except ImportError:
     NEAR_AVAILABLE = False
     logger.debug("NEAR integration not available")
 
-# Dictionary of registered games
+# Game registry
 GAMES: Dict[str, Type[GameInterface]] = {}
 
-@dataclass
-class GameInfo:
-    """Information about a registered game."""
-    name: str
-    env_id: str
-    description: str
-    score_range: Tuple[float, float]  # (min_score, max_score)
-    make_env: Callable
-    load_model: Callable
-
-def register_game(game_class: Type[GameInterface]) -> None:
-    """Register a game with the system."""
-    game = game_class()
-    logger.debug(f"Registered game: {game.name}")
-    GAMES[game.name] = game_class
+def register_game(name: str, game_class: Type[GameInterface]) -> None:
+    """Register a game with the arcade.
+    
+    Args:
+        name: Unique identifier for the game
+        game_class: Game implementation class
+    """
+    if name in GAMES:
+        logger.warning(f"Game '{name}' already registered. Overwriting...")
+    GAMES[name] = game_class
+    logger.debug(f"Registered game: {name}")
 
 def get_game(name: str) -> GameInterface:
     """Get a game instance by name.
@@ -65,15 +57,22 @@ def get_game(name: str) -> GameInterface:
         )
     return GAMES[name]()
 
-def get_registered_games() -> List[str]:
-    """Get list of registered game names."""
-    return list(GAMES.keys())
+def get_registered_games() -> Dict[str, Type[GameInterface]]:
+    """Get all registered games."""
+    return GAMES.copy()
 
-def get_game_info(name: str) -> Optional[GameInterface]:
-    """Get information about a registered game."""
+def get_game_info(name: str) -> Optional[Dict[str, str]]:
+    """Get information about a specific game."""
     if name not in GAMES:
         return None
-    return GAMES[name]()
+        
+    game = GAMES[name]()
+    return {
+        "name": game.name,
+        "description": game.description,
+        "version": game.version,
+        "staking_enabled": NEAR_AVAILABLE
+    }
 
 def list_games() -> List[Dict[str, str]]:
     """List all available games with their information."""
@@ -141,23 +140,6 @@ for game_dir in games_dir.iterdir():
                 if validate_game_implementation(game_class):
                     # Use the game's name property as the registry key
                     game_instance = game_class()
-                    register_game(game_instance)
+                    register_game(game_instance.name, game_class)
     except Exception as e:
-        logger.warning(f"Could not load game from {game_file}: {e}")
-
-def make_atari_env(env_id: str):
-    """Create an Atari environment with standard wrappers."""
-    env = gym.make(env_id, render_mode='rgb_array')
-    env = gym.wrappers.ResizeObservation(env, (84, 84))
-    env = gym.wrappers.GrayscaleObservation(env)
-    env = gym.wrappers.FrameStackObservation(env, 4)
-    return env
-
-def load_model(model_path: str):
-    """Load a trained model."""
-    try:
-        from stable_baselines3 import DQN
-        return DQN.load(model_path)
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        return None 
+        logger.warning(f"Could not load game from {game_file}: {e}") 

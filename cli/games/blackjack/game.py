@@ -1,4 +1,4 @@
-"""Space Invaders game implementation using ALE."""
+"""Blackjack implementation using ALE."""
 import gymnasium as gym
 from pathlib import Path
 from typing import Optional, Tuple, Any
@@ -24,32 +24,30 @@ except ImportError:
     NEAR_AVAILABLE = False
     NEARWallet = Any  # Type alias for type hints
 
-class SpaceInvadersGame(GameInterface):
-    """Space Invaders game implementation."""
+class BlackjackGame(GameInterface):
+    """Blackjack implementation."""
     
     @property
     def name(self) -> str:
-        return "space_invaders"
+        return "blackjack"
     
     @property
     def description(self) -> str:
-        return "Classic Space Invaders - defend Earth from alien invasion"
+        return "Classic Blackjack card game"
     
     @property
     def version(self) -> str:
         return "1.0.0"
     
     def _make_env(self, render: bool = False) -> gym.Env:
-        """Create the Space Invaders environment with proper wrappers."""
-        # Use human rendering if requested, otherwise rgb_array
+        """Create the game environment with proper wrappers."""
         render_mode = "human" if render else "rgb_array"
-        env = gym.make("ALE/SpaceInvaders-v5", render_mode=render_mode, frameskip=4)
+        env = gym.make("ALE/Blackjack-v5", render_mode=render_mode, frameskip=4)
         
         # Add standard Atari wrappers
         env = NoopResetEnv(env, noop_max=30)
         env = MaxAndSkipEnv(env, skip=4)
         env = EpisodicLifeEnv(env)
-        env = FireResetEnv(env)
         
         # Observation preprocessing
         env = gym.wrappers.ResizeObservation(env, (84, 84))
@@ -67,7 +65,7 @@ class SpaceInvadersGame(GameInterface):
         return env
     
     def train(self, render: bool = False, config_path: Optional[Path] = None) -> Path:
-        """Train a Space Invaders agent."""
+        """Train agent."""
         config = self.load_config(config_path)
         
         # Create vectorized environment
@@ -84,14 +82,14 @@ class SpaceInvadersGame(GameInterface):
             batch_size=config.batch_size,
             exploration_fraction=config.exploration_fraction,
             target_update_interval=config.target_update_interval,
-            tensorboard_log="./tensorboard/space_invaders"
+            tensorboard_log=f"./tensorboard/{self.name}"
         )
         
-        logger.info(f"Training Space Invaders agent for {config.total_timesteps} timesteps...")
+        logger.info(f"Training {self.name} agent for {config.total_timesteps} timesteps...")
         model.learn(total_timesteps=config.total_timesteps)
         
         # Save the model
-        model_path = Path("models/space_invaders_final.zip")
+        model_path = Path(f"models/{self.name}_final.zip")
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
         logger.info(f"Model saved to {model_path}")
@@ -99,7 +97,7 @@ class SpaceInvadersGame(GameInterface):
         return model_path
     
     def evaluate(self, model_path: Path, episodes: int = 10, record: bool = False) -> EvaluationResult:
-        """Evaluate a trained Space Invaders model."""
+        """Evaluate a trained model."""
         env = DummyVecEnv([lambda: self._make_env(record)])
         env = VecFrameStack(env, 4)
         
@@ -126,7 +124,7 @@ class SpaceInvadersGame(GameInterface):
             total_score += episode_score
             episode_lengths.append(episode_length)
             best_score = max(best_score, episode_score)
-            if episode_score > 100:  # Consider scoring over 100 as success
+            if episode_score >= 20:  # Success threshold for blackjack
                 successes += 1
         
         return EvaluationResult(
@@ -138,7 +136,7 @@ class SpaceInvadersGame(GameInterface):
         )
     
     def get_default_config(self) -> GameConfig:
-        """Get default Space Invaders configuration."""
+        """Get default configuration."""
         return GameConfig(
             total_timesteps=1000000,
             learning_rate=0.00025,
@@ -151,11 +149,11 @@ class SpaceInvadersGame(GameInterface):
         )
     
     def get_score_range(self) -> Tuple[float, float]:
-        """Get Space Invaders score range."""
-        return (0.0, 1000.0)  # Typical score range
+        """Get score range."""
+        return (-21.0, 21.0)  # Blackjack score range
     
     def validate_model(self, model_path: Path) -> bool:
-        """Validate Space Invaders model file."""
+        """Validate model file."""
         try:
             env = DummyVecEnv([lambda: self._make_env()])
             DQN.load(model_path, env=env)
@@ -163,9 +161,9 @@ class SpaceInvadersGame(GameInterface):
         except Exception as e:
             logger.error(f"Invalid model file: {e}")
             return False
-    
+            
     def stake(self, wallet: NEARWallet, model_path: Path, amount: float, target_score: float) -> None:
-        """Stake NEAR on Space Invaders performance."""
+        """Stake NEAR on performance."""
         if not NEAR_AVAILABLE:
             raise RuntimeError("NEAR integration not available")
             
@@ -192,7 +190,12 @@ class SpaceInvadersGame(GameInterface):
         wallet.record_stake(stake_record)
         logger.info(f"Successfully staked {amount} NEAR on achieving score {target_score}")
 
+# Add this at the bottom of the file
 def register():
-    """Register the Space Invaders game."""
+    """Register the game."""
     from cli.games import register_game
-    register_game("space_invaders", SpaceInvadersGame) 
+    register_game("blackjack", BlackjackGame)
+
+# Make sure this is at the bottom of the file
+if __name__ == "__main__":
+    register()
