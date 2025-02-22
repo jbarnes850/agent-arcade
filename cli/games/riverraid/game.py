@@ -13,7 +13,7 @@ from stable_baselines3.common.atari_wrappers import (
 )
 from loguru import logger
 
-from cli.games.base import GameInterface, GameConfig, EvaluationResult, ProgressCallback
+from cli.games.base import GameInterface, GameConfig, EvaluationResult
 
 try:
     from cli.core.near import NEARWallet
@@ -24,58 +24,21 @@ except ImportError:
     NEARWallet = Any  # Type alias for type hints
 
 class RiverraidGame(GameInterface):
-    """River Raid game implementation."""
-    
-    def __call__(self):
-        """Make the class callable to return itself."""
-        return self
+    """Riverraid implementation."""
     
     @property
     def name(self) -> str:
         return "riverraid"
-        
-    @property
-    def env_id(self) -> str:
-        return "ALE/RiverRaid-v5"
-        
+    
     @property
     def description(self) -> str:
-        return "Control a jet, manage fuel, and destroy enemies"
-        
+        return "Control a jet flying over a river, destroying enemies while managing fuel. Score points by destroying enemy objects like tankers (30), helicopters (60), fuel depots (80), jets (100), and bridges (500)."
+    
     @property
     def version(self) -> str:
         return "1.0.0"
-        
-    @property
-    def score_range(self) -> tuple[float, float]:
-        return (0, 100000)  # River Raid scores can go very high
-        
-    def make_env(self):
-        """Create the game environment."""
-        env = gym.make(self.env_id, render_mode='rgb_array')
-        env = gym.wrappers.ResizeObservation(env, (84, 84))
-        env = gym.wrappers.GrayscaleObservation(env)
-        env = gym.wrappers.FrameStackObservation(env, 4)
-        return env
-        
-    def load_model(self, model_path: str):
-        """Load a trained model."""
-        return DQN.load(model_path)
-        
-    def get_default_config(self) -> GameConfig:
-        """Get default configuration for the game."""
-        return GameConfig(
-            total_timesteps=1_000_000,
-            learning_rate=0.00025,
-            buffer_size=250_000,
-            learning_starts=50_000,
-            batch_size=256,
-            exploration_fraction=0.2,
-            target_update_interval=2000,
-            frame_stack=4
-        )
     
-    def _make_env(self, render: bool = False, record: bool = False) -> gym.Env:
+    def _make_env(self, render: bool = False) -> gym.Env:
         """Create the game environment with proper wrappers."""
         render_mode = "human" if render else "rgb_array"
         env = gym.make("ALE/Riverraid-v5", render_mode=render_mode, frameskip=4)
@@ -103,14 +66,14 @@ class RiverraidGame(GameInterface):
         return env
     
     def train(self, render: bool = False, config_path: Optional[Path] = None) -> Path:
-        """Train a River Raid agent."""
+        """Train agent."""
         config = self.load_config(config_path)
         
-        # Create vectorized environment without recording
-        env = DummyVecEnv([lambda: self._make_env(render, record=False) for _ in range(4)])  # Use 4 parallel environments
+        # Create vectorized environment
+        env = DummyVecEnv([lambda: self._make_env(render)])
         env = VecFrameStack(env, config.frame_stack)
         
-        # Create and train the model with optimized parameters
+        # Create and train the model
         model = DQN(
             "CnnPolicy",
             env,
@@ -120,37 +83,14 @@ class RiverraidGame(GameInterface):
             batch_size=config.batch_size,
             exploration_fraction=config.exploration_fraction,
             target_update_interval=config.target_update_interval,
-            tensorboard_log="./tensorboard/riverraid",
-            verbose=1,
-            train_freq=2,           # More frequent updates
-            gradient_steps=1,       # One gradient step per update
-            exploration_initial_eps=1.0,
-            exploration_final_eps=0.1,  # Higher final exploration
-            max_grad_norm=10,       # Clip gradients for stability
-            device='auto'           # Automatically use GPU if available
+            tensorboard_log=f"./tensorboard/{self.name}"
         )
         
-        logger.info(f"Training River Raid agent for {config.total_timesteps} timesteps...")
-        logger.info("This initial training will take about 10-15 minutes.")
-        logger.info("For better performance, you can increase total_timesteps to 250000 after this initial run.")
-        logger.info("Monitor progress in TensorBoard: tensorboard --logdir ./tensorboard")
-        
-        # Use our custom ProgressCallback for consistent progress tracking
-        callback = ProgressCallback(config.total_timesteps)
-        
-        try:
-            model.learn(
-                total_timesteps=config.total_timesteps,
-                callback=callback,
-                progress_bar=True,
-                log_interval=100    # More frequent logging
-            )
-        except Exception as e:
-            logger.error(f"Training failed: {e}")
-            raise
+        logger.info(f"Training {self.name} agent for {config.total_timesteps} timesteps...")
+        model.learn(total_timesteps=config.total_timesteps)
         
         # Save the model
-        model_path = Path("models/riverraid_final.zip")
+        model_path = Path(f"models/{self.name}_final.zip")
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
         logger.info(f"Model saved to {model_path}")
@@ -196,9 +136,22 @@ class RiverraidGame(GameInterface):
             avg_episode_length=sum(episode_lengths) / len(episode_lengths)
         )
     
-    def get_score_range(self) -> tuple[float, float]:
-        """Get valid score range for the game."""
-        return self.score_range
+    def get_default_config(self) -> GameConfig:
+        """Get default configuration."""
+        return GameConfig(
+            total_timesteps=1000000,
+            learning_rate=0.00025,
+            buffer_size=250000,
+            learning_starts=50000,
+            batch_size=256,
+            exploration_fraction=0.2,
+            target_update_interval=2000,
+            frame_stack=4
+        )
+    
+    def get_score_range(self) -> Tuple[float, float]:
+        """Get score range."""
+        return (0.0, 100000.0)
     
     def validate_model(self, model_path: Path) -> bool:
         """Validate model file."""
@@ -210,7 +163,7 @@ class RiverraidGame(GameInterface):
             logger.error(f"Invalid model file: {e}")
             return False
     
-    async def stake(self, wallet: NEARWallet, model_path: Path, amount: float, target_score: float) -> None:
+    def stake(self, wallet: NEARWallet, model_path: Path, amount: float, target_score: float) -> None:
         """Stake NEAR on performance."""
         if not NEAR_AVAILABLE:
             raise NotImplementedError("NEAR integration is not available. Install py_near to enable staking.")
@@ -222,21 +175,23 @@ class RiverraidGame(GameInterface):
             raise ValueError("Invalid model file")
         
         # Verify target score is within range
-        min_score, max_score = self.score_range
+        min_score, max_score = self.get_score_range()
         if not min_score <= target_score <= max_score:
             raise ValueError(f"Target score must be between {min_score} and {max_score}")
         
-        # Use staking module
-        await stake_on_game(
-            wallet=wallet,
-            game_name=self.name,
-            model_path=model_path,
+        # Create stake record
+        stake_record = StakeRecord(
+            game=self.name,
+            model_path=str(model_path),
             amount=amount,
-            target_score=target_score,
-            score_range=self.score_range
+            target_score=target_score
         )
+        
+        # Record stake
+        wallet.record_stake(stake_record)
+        logger.info(f"Successfully staked {amount} NEAR on achieving score {target_score}")
 
 def register():
     """Register the game."""
     from cli.games import register_game
-    register_game(RiverraidGame)
+    register_game("riverraid", RiverraidGame)

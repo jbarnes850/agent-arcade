@@ -1,0 +1,39 @@
+# Tennis Game Configuration
+
+# Environment settings
+env:
+  name: tennis
+  frame_stack: 4
+  render_mode: null  # Set to null for training without visualization
+
+# Training settings
+training:
+  total_timesteps: 1000000  # 1 million steps
+  learning_rate: 0.0001
+  batch_size: 64
+  buffer_size: 100000
+  learning_starts: 1000
+  target_update_interval: 1000
+  train_frequency: 4
+  gradient_steps: 1
+  exploration_fraction: 0.1
+  exploration_initial_eps: 1.0
+  exploration_final_eps: 0.05
+  max_grad_norm: 10
+
+# Model architecture
+model:
+  net_arch: 
+    - 64
+    - 64
+  activation_fn: "relu"
+
+# Evaluation settings
+evaluation:
+  n_eval_episodes: 10
+  eval_frequency: 10000
+
+# Logging settings
+logging:
+  log_interval: 1000
+  verbose: 1 
